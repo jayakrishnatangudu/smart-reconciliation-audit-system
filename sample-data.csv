@@ -1,0 +1,11 @@
+Transaction ID,Amount,Reference Number,Date,Description
+TXN001,1000.00,REF12345,2024-01-15,Payment from Customer A
+TXN002,2500.50,REF12346,2024-01-16,Invoice settlement
+TXN003,1000.00,REF12345,2024-01-15,Duplicate transaction
+TXN004,1020.00,REF12347,2024-01-17,Payment with slight variance
+TXN005,3500.75,REF12348,2024-01-18,Large transaction
+TXN006,500.00,REF12349,2024-01-19,Small payment
+TXN007,1200.00,REF12350,2024-01-20,Monthly subscription
+TXN008,5000.00,REF12351,2024-01-21,Bulk payment
+TXN009,750.25,REF12352,2024-01-22,Partial payment
+TXN010,2000.00,REF12353,2024-01-23,Full settlement
