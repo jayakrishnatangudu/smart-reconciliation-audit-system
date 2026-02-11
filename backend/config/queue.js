@@ -2,62 +2,79 @@ const Queue = require('bull');
 const Redis = require('ioredis');
 
 // Redis configuration
-const redisConfig = process.env.REDIS_URL || {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-    // Auto-enable TLS for Upstash if not using REDIS_URL string
-    ...((process.env.REDIS_TLS === 'true' || (process.env.REDIS_HOST && process.env.REDIS_HOST.includes('upstash'))) && {
-        tls: { rejectUnauthorized: false }
-    })
-};
+const redisUrl = process.env.REDIS_URL;
+const isUpstash = redisUrl?.includes('upstash') || process.env.REDIS_HOST?.includes('upstash');
+
+const redisConfig = redisUrl ?
+    (isUpstash && !redisUrl.startsWith('rediss://') ? redisUrl.replace('redis://', 'rediss://') : redisUrl)
+    : {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        ...((process.env.REDIS_TLS === 'true' || isUpstash) && {
+            tls: { rejectUnauthorized: false }
+        })
+    };
 
 // Create Redis client
-const redisClient = process.env.REDIS_URL ?
-    new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: false }) :
-    new Redis(redisConfig);
+// Pass specific ioredis options if redisConfig is an object, otherwise ioredis parses the URL string
+const redisClient = new Redis(
+    typeof redisConfig === 'string' ? redisConfig : {
+        ...redisConfig,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false
+    }
+);
+
+const defaultFileProcessingJobOptions = {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: 100,
+    removeOnFail: 200
+};
+
+const defaultReconciliationJobOptions = {
+    attempts: 2,
+    backoff: { type: 'fixed', delay: 3000 },
+    removeOnComplete: 50,
+    removeOnFail: 100
+};
 
 // File processing queue
-const fileProcessingQueue = process.env.REDIS_URL
-    ? new Queue('file-processing', process.env.REDIS_URL, {
-        defaultJobOptions: {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            removeOnComplete: 100,
-            removeOnFail: 200
+const fileProcessingQueue = new Queue('file-processing', {
+    createClient: function (type, redisOpts) {
+        if (type === 'client') {
+            return redisClient;
         }
-    })
-    : new Queue('file-processing', {
-        redis: redisConfig,
-        defaultJobOptions: {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            removeOnComplete: 100,
-            removeOnFail: 200
+        if (type === 'bclient') {
+            return redisClient.duplicate();
         }
-    });
+        if (type === 'subscriber') {
+            return redisClient.duplicate();
+        }
+        return new Redis(redisOpts); // Fallback, though should be covered by above
+    },
+    defaultJobOptions: defaultFileProcessingJobOptions
+});
 
 // Reconciliation queue
-const reconciliationQueue = process.env.REDIS_URL
-    ? new Queue('reconciliation', process.env.REDIS_URL, {
-        defaultJobOptions: {
-            attempts: 2,
-            backoff: { type: 'fixed', delay: 3000 },
-            removeOnComplete: 50,
-            removeOnFail: 100
+const reconciliationQueue = new Queue('reconciliation', {
+    createClient: function (type, redisOpts) {
+        if (type === 'client') {
+            return redisClient;
         }
-    })
-    : new Queue('reconciliation', {
-        redis: redisConfig,
-        defaultJobOptions: {
-            attempts: 2,
-            backoff: { type: 'fixed', delay: 3000 },
-            removeOnComplete: 50,
-            removeOnFail: 100
+        if (type === 'bclient') {
+            return redisClient.duplicate();
         }
-    });
+        if (type === 'subscriber') {
+            return redisClient.duplicate();
+        }
+        return new Redis(redisOpts);
+    },
+    defaultJobOptions: defaultReconciliationJobOptions
+});
 
 // Queue event handlers
 fileProcessingQueue.on('error', (error) => {
