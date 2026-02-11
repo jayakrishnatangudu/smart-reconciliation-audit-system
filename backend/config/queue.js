@@ -2,44 +2,62 @@ const Queue = require('bull');
 const Redis = require('ioredis');
 
 // Redis configuration
-const redisConfig = {
+const redisConfig = process.env.REDIS_URL || {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: null,
-    enableReadyCheck: false
+    enableReadyCheck: false,
+    // Auto-enable TLS for Upstash if not using REDIS_URL string
+    ...((process.env.REDIS_TLS === 'true' || (process.env.REDIS_HOST && process.env.REDIS_HOST.includes('upstash'))) && {
+        tls: { rejectUnauthorized: false }
+    })
 };
 
 // Create Redis client
-const redisClient = new Redis(redisConfig);
+const redisClient = process.env.REDIS_URL ?
+    new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: false }) :
+    new Redis(redisConfig);
 
 // File processing queue
-const fileProcessingQueue = new Queue('file-processing', {
-    redis: redisConfig,
-    defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-            type: 'exponential',
-            delay: 5000
-        },
-        removeOnComplete: 100, // Keep last 100 completed jobs
-        removeOnFail: 200 // Keep last 200 failed jobs
-    }
-});
+const fileProcessingQueue = process.env.REDIS_URL
+    ? new Queue('file-processing', process.env.REDIS_URL, {
+        defaultJobOptions: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: 100,
+            removeOnFail: 200
+        }
+    })
+    : new Queue('file-processing', {
+        redis: redisConfig,
+        defaultJobOptions: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: 100,
+            removeOnFail: 200
+        }
+    });
 
 // Reconciliation queue
-const reconciliationQueue = new Queue('reconciliation', {
-    redis: redisConfig,
-    defaultJobOptions: {
-        attempts: 2,
-        backoff: {
-            type: 'fixed',
-            delay: 3000
-        },
-        removeOnComplete: 50,
-        removeOnFail: 100
-    }
-});
+const reconciliationQueue = process.env.REDIS_URL
+    ? new Queue('reconciliation', process.env.REDIS_URL, {
+        defaultJobOptions: {
+            attempts: 2,
+            backoff: { type: 'fixed', delay: 3000 },
+            removeOnComplete: 50,
+            removeOnFail: 100
+        }
+    })
+    : new Queue('reconciliation', {
+        redis: redisConfig,
+        defaultJobOptions: {
+            attempts: 2,
+            backoff: { type: 'fixed', delay: 3000 },
+            removeOnComplete: 50,
+            removeOnFail: 100
+        }
+    });
 
 // Queue event handlers
 fileProcessingQueue.on('error', (error) => {
