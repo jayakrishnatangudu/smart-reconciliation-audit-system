@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: smart-reconciliation-system
+    env: node
+    plan: free
+    repo: https://github.com/jayakrishnatangudu/smart-reconciliation-audit-system
+    branch: main
+    rootDir: .
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+        value: 6379
+      - key: NODE_ENV
+        value: production

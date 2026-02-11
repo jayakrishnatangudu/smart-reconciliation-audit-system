@@ -112,6 +112,25 @@ app.get('/api/docs', (req, res) => {
     });
 });
 
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendPath));
+
+// Handle SPA routing: serve index.html for non-API routes
+app.get('*', (req, res, next) => {
+    // If it's an API request, skip to 404 handler
+    if (req.path.startsWith('/api')) {
+        return next();
+    }
+    // Otherwise serve index.html if it exists
+    const indexPath = path.join(frontendPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        next();
+    }
+});
+
 // 404 handler (must be after all routes)
 app.use(notFound);
 

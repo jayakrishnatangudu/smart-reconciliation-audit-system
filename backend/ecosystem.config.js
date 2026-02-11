@@ -3,13 +3,12 @@ module.exports = {
         {
             name: 'reconciliation-server',
             script: './server.js',
-            instances: 2,
+            instances: 1,
             exec_mode: 'cluster',
             watch: false,
             max_memory_restart: '1G',
             env: {
-                NODE_ENV: 'production',
-                PORT: 5000
+                NODE_ENV: 'production'
             },
             error_file: './logs/server-error.log',
             out_file: './logs/server-out.log',
