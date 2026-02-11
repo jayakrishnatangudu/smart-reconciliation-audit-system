@@ -139,12 +139,12 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(50));
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 API Docs: http://localhost:${PORT}/api/docs`);
-    console.log(`✅ Health Check: http://localhost:${PORT}/health`);
+    console.log(`🔗 API Docs: http://0.0.0.0:${PORT}/api/docs`);
+    console.log(`✅ Health Check: http://0.0.0.0:${PORT}/health`);
     console.log('='.repeat(50));
 });
 
