@@ -49,12 +49,12 @@ const fileProcessingQueue = new Queue('file-processing', {
             return redisClient;
         }
         if (type === 'bclient') {
-            return redisClient.duplicate();
+            return new Redis(redisConfig, { maxRetriesPerRequest: null, enableReadyCheck: false });
         }
         if (type === 'subscriber') {
-            return redisClient.duplicate();
+            return new Redis(redisConfig, { maxRetriesPerRequest: null, enableReadyCheck: false });
         }
-        return new Redis(redisOpts); // Fallback, though should be covered by above
+        return new Redis(redisConfig);
     },
     defaultJobOptions: defaultFileProcessingJobOptions
 });
@@ -66,12 +66,12 @@ const reconciliationQueue = new Queue('reconciliation', {
             return redisClient;
         }
         if (type === 'bclient') {
-            return redisClient.duplicate();
+            return new Redis(redisConfig, { maxRetriesPerRequest: null, enableReadyCheck: false });
         }
         if (type === 'subscriber') {
-            return redisClient.duplicate();
+            return new Redis(redisConfig, { maxRetriesPerRequest: null, enableReadyCheck: false });
         }
-        return new Redis(redisOpts);
+        return new Redis(redisConfig);
     },
     defaultJobOptions: defaultReconciliationJobOptions
 });
