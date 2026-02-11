@@ -5,29 +5,21 @@ const Redis = require('ioredis');
 const redisUrl = process.env.REDIS_URL;
 const isUpstash = redisUrl?.includes('upstash') || process.env.REDIS_HOST?.includes('upstash');
 
-// For Upstash: ensure we use TLS (rediss://) 
+// For Upstash: ensure we use TLS (rediss://)
 const finalRedisUrl = redisUrl
     ? (isUpstash && !redisUrl.startsWith('rediss://') ? redisUrl.replace('redis://', 'rediss://') : redisUrl)
     : null;
 
-// Redis options for Bull queues - Bull requires maxRetriesPerRequest: null
-const redisOptions = finalRedisUrl
-    ? { redis: finalRedisUrl }
-    : {
-        redis: {
-            host: process.env.REDIS_HOST || 'localhost',
-            port: process.env.REDIS_PORT || 6379,
-            password: process.env.REDIS_PASSWORD || undefined,
-            ...((process.env.REDIS_TLS === 'true' || isUpstash) && {
-                tls: { rejectUnauthorized: false }
-            })
-        }
-    };
-
-// Create a standalone Redis client for non-queue usage (e.g., caching)
-const redisClient = finalRedisUrl
-    ? new Redis(finalRedisUrl, { maxRetriesPerRequest: null, enableReadyCheck: false })
-    : new Redis({
+// Factory function to create a new Redis client with Bull-compatible settings
+// Bull requires: maxRetriesPerRequest = null, enableReadyCheck = false
+function createBullRedisClient() {
+    if (finalRedisUrl) {
+        return new Redis(finalRedisUrl, {
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false
+        });
+    }
+    return new Redis({
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
         password: process.env.REDIS_PASSWORD || undefined,
@@ -37,10 +29,16 @@ const redisClient = finalRedisUrl
             tls: { rejectUnauthorized: false }
         })
     });
+}
 
-// File processing queue - let Bull manage its own Redis connections
-const fileProcessingQueue = new Queue('file-processing', finalRedisUrl || '', {
-    ...(!finalRedisUrl && redisOptions),
+// Standalone Redis client for non-queue usage
+const redisClient = createBullRedisClient();
+
+// File processing queue
+const fileProcessingQueue = new Queue('file-processing', {
+    createClient: function (type) {
+        return createBullRedisClient();
+    },
     defaultJobOptions: {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
@@ -49,9 +47,11 @@ const fileProcessingQueue = new Queue('file-processing', finalRedisUrl || '', {
     }
 });
 
-// Reconciliation queue - let Bull manage its own Redis connections  
-const reconciliationQueue = new Queue('reconciliation', finalRedisUrl || '', {
-    ...(!finalRedisUrl && redisOptions),
+// Reconciliation queue
+const reconciliationQueue = new Queue('reconciliation', {
+    createClient: function (type) {
+        return createBullRedisClient();
+    },
     defaultJobOptions: {
         attempts: 2,
         backoff: { type: 'fixed', delay: 3000 },
